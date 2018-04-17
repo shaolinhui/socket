@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+<head>
+    <title>Socket.IO chat</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font: 13px Helvetica, Arial; margin-bottom: 50px;}
+        form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
+        form input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
+        form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
+        #messages { list-style-type: none; margin: 0; padding: 0; }
+        #messages li { padding: 5px 10px; }
+        #messages li:nth-child(odd) { background: #eee; }
+        .private{color: blue}
+        .system{color: red}
+        .left{width: 80%}
+        .right{width: 20%;position: fixed;top: 0;right: 0}
+        #userList{
+            list-style: none;
+        }
+    </style>
+</head>
+<body>
+<div class="left">
+    <ul id="messages"></ul>
+    <form action="">
+        <input id="m" autocomplete="off" />
+        <button id="btn">发送</button>
+    </form>
+</div>
+<div class="right">
+    <h3>在线列表</h3>
+    <ul id="userList">
+
+    </ul>
+</div>
+</body>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/jquery-3.2.1.min.js"></script>
+<script>
+    function appendMessage(msg,style){
+        var time=getTimeString();
+        $('#messages').append(`<li class="${style}">[${time}]${msg}</li>`);
+    }
+    var socket = io();
+    // 发送时间
+    function getTimeString(){
+        var d=new Date();
+        var h=d.getHours();
+        var m=d.getMinutes();
+        var s=d.getSeconds();
+        function timeaStr(n){
+            return n<10?"0"+n:n;
+        }
+        return [timeaStr(h),timeaStr(m),timeaStr(s)].join(":");
+    }
+
+
+
+    $("#btn").on("click",function () {
+        var msg=$("#m").val();
+        console.log(msg);
+        //发送聊天信息到服务器 发送完成后return false避免刷新
+        socket.emit("chat message",msg);
+        appendMessage(`我:${msg}`);
+        $("#m").val("");
+        return false;
+    });
+    //调用函数实现发送信息创建到页面 //收到新消息
+    socket.on('chat message', function(data){
+        appendMessage(data.name+":"+data.message,data.private?"private":"");
+        $(document).scrollTop(9999999)
+    });
+    //设置昵称弹框
+    socket.on('prompt nockname', function(msg){
+        var name;
+        name = sessionStorage.getItem("chatNickName");
+        if(!name){
+             name=prompt(msg);
+            sessionStorage.setItem("chatNickName",name);
+        }
+        else if(socket.name==name){
+            sessionStorage.removeItem("chatNickName");
+        }
+        socket.emit("set nockname",name);
+        socket.name=name;
+    });
+    //公告     //收到系统信息
+    socket.on('system message', function(msg){
+        appendMessage("系统:"+msg,"system");
+    });
+
+    //前台接收
+    socket.on('online users', function(names){
+        console.log(names);
+        appendMessage(`现在${names.length}个人在线`,"system");
+        var list=names.map((item)=>{
+            return `<li dn="${item}">${item} ${item==socket.name?"(我)":""}</li>`;
+        }).join("");
+        $("#userList").html(list);
+    });
+
+    $("#userList").on("click","li",function () {
+       var namess= $(this).attr("dn");
+        var msg=$("#m").val();
+        $("#m").val(`@${namess} ${msg}`);
+    })
+</script>
+</html>
